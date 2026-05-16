@@ -67,6 +67,8 @@
   --color-ink-soft: var(--ink-soft);
   --color-hairline: var(--hairline);
   --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
   --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
 }
