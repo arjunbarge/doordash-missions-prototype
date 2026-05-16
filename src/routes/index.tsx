@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronRight,
+  Clock,
+  Info,
   Minus,
   Plus,
+  RefreshCw,
   Search,
   ShoppingBag,
   Sparkles,
@@ -52,16 +56,19 @@ type CartItem = {
   unit: string;
   price: number;
   merchant: string;
+  substitutedFrom?: string;
 };
 
 type Template = {
   estimatedTime: string;
+  priceCeilingPerGuest: number;
   groups: { merchant: string; eta: string; items: Omit<CartItem, "merchant">[] }[];
 };
 
 const TEMPLATES: Record<MissionId, Template> = {
   dinner: {
     estimatedTime: "55–70 min",
+    priceCeilingPerGuest: 75,
     groups: [
       {
         merchant: "Rainbow Grocery",
@@ -70,7 +77,7 @@ const TEMPLATES: Record<MissionId, Template> = {
           { id: "d1", name: "Bone-in ribeye, dry-aged",   qtyPerGuest: 0.5, unit: "lb",   price: 28 },
           { id: "d2", name: "Heirloom potatoes",          qtyPerGuest: 0.4, unit: "lb",   price: 4 },
           { id: "d3", name: "Little gem lettuce",         qtyPerGuest: 0.3, unit: "head", price: 3 },
-          { id: "d4", name: "Maldon flake salt",          qtyPerGuest: 0,   unit: "tin",  price: 8, },
+          { id: "d4", name: "Maldon flake salt",          qtyPerGuest: 0,   unit: "tin",  price: 8 },
         ],
       },
       {
@@ -93,6 +100,7 @@ const TEMPLATES: Record<MissionId, Template> = {
   },
   brunch: {
     estimatedTime: "40–55 min",
+    priceCeilingPerGuest: 40,
     groups: [
       { merchant: "Tartine Bakery", eta: "40 min", items: [
         { id: "b1", name: "Morning bun",            qtyPerGuest: 1,   unit: "ea",  price: 5 },
@@ -111,6 +119,7 @@ const TEMPLATES: Record<MissionId, Template> = {
   },
   gameday: {
     estimatedTime: "35–50 min",
+    priceCeilingPerGuest: 35,
     groups: [
       { merchant: "Safeway", eta: "35 min", items: [
         { id: "g1", name: "Wings, party platter",   qtyPerGuest: 6,   unit: "pc",  price: 1.5 },
@@ -126,6 +135,7 @@ const TEMPLATES: Record<MissionId, Template> = {
   },
   cocktail: {
     estimatedTime: "50–65 min",
+    priceCeilingPerGuest: 55,
     groups: [
       { merchant: "Cask Spirits", eta: "60 min", items: [
         { id: "c1", name: "Mezcal, Vida 750ml",     qtyPerGuest: 0.2, unit: "btl", price: 38 },
@@ -142,6 +152,7 @@ const TEMPLATES: Record<MissionId, Template> = {
   },
   casual: {
     estimatedTime: "40–55 min",
+    priceCeilingPerGuest: 30,
     groups: [
       { merchant: "Bi-Rite Market", eta: "45 min", items: [
         { id: "k1", name: "Cheese board trio",      qtyPerGuest: 0.3, unit: "pkg", price: 14 },
@@ -157,41 +168,197 @@ const TEMPLATES: Record<MissionId, Template> = {
   },
 };
 
-function buildCart(missionId: MissionId, guests: number): CartItem[] {
-  const t = TEMPLATES[missionId];
-  return t.groups.flatMap((g) =>
-    g.items.map((i) => ({
-      ...i,
-      merchant: g.merchant,
-      // scaled qty (rounded up where it makes sense, min 1 for "shared" items with qtyPerGuest 0)
-      qtyPerGuest: i.qtyPerGuest === 0 ? 1 : Math.max(1, Math.ceil(i.qtyPerGuest * guests)),
-    }))
-  );
+// Pre-approved fallback substitutions (item-id → replacement)
+const SUBSTITUTIONS: Record<string, { name: string; price: number; unit: string }> = {
+  d1: { name: "NY strip steak (sub for ribeye)", price: 24, unit: "lb" },
+  b4: { name: "House-cured trout (sub for salmon)", price: 16, unit: "lb" },
+  c1: { name: "Mezcal Bozal 750ml (sub for Vida)", price: 42, unit: "btl" },
+};
+
+// Items that are "out of stock" for a given (mock) date scenario.
+// Demonstrates the substitution + drop edge cases.
+function unavailableItemsFor(date: string): Set<string> {
+  // Make it date-driven so users can see different behaviors
+  const day = new Date(date).getDay(); // 0..6
+  if (day === 0) return new Set(["d1", "d8"]); // Sun: ribeye subbed, candles dropped
+  if (day === 6) return new Set(["b4"]);       // Sat: salmon subbed
+  return new Set();
 }
 
+// Mock "merchant unavailable for date" (entire merchant down for region/date).
+function unavailableMerchantsFor(date: string): Set<string> {
+  const day = new Date(date).getDay();
+  if (day === 1) return new Set(["Bloomwell Florals"]); // Mon: florist closed
+  return new Set();
+}
+
+type BuildResult = {
+  items: CartItem[];
+  notices: { kind: "sub" | "drop" | "merchant"; message: string }[];
+};
+
+function buildCart(missionId: MissionId, guests: number, date: string): BuildResult {
+  const t = TEMPLATES[missionId];
+  const oos = unavailableItemsFor(date);
+  const oosMerchants = unavailableMerchantsFor(date);
+  const items: CartItem[] = [];
+  const notices: BuildResult["notices"] = [];
+
+  for (const g of t.groups) {
+    if (oosMerchants.has(g.merchant)) {
+      notices.push({
+        kind: "merchant",
+        message: `${g.merchant} isn't delivering on this date — items removed.`,
+      });
+      continue;
+    }
+    for (const i of g.items) {
+      const scaled = i.qtyPerGuest === 0 ? 1 : Math.max(1, Math.ceil(i.qtyPerGuest * guests));
+      if (oos.has(i.id)) {
+        const sub = SUBSTITUTIONS[i.id];
+        if (sub) {
+          items.push({
+            id: i.id,
+            name: sub.name,
+            qtyPerGuest: scaled,
+            unit: sub.unit,
+            price: sub.price,
+            merchant: g.merchant,
+            substitutedFrom: i.name,
+          });
+          notices.push({
+            kind: "sub",
+            message: `${i.name} → ${sub.name}`,
+          });
+        } else {
+          notices.push({
+            kind: "drop",
+            message: `${i.name} unavailable — no fallback. Item removed.`,
+          });
+        }
+        continue;
+      }
+      items.push({ ...i, qtyPerGuest: scaled, merchant: g.merchant });
+    }
+  }
+  return { items, notices };
+}
+
+// ---------- Analytics (in-memory event log) ----------
+
+type AnalyticsEvent = {
+  ts: number;
+  name:
+    | "mission_home_impression"
+    | "mission_declared"
+    | "mission_dismissed"
+    | "mission_replaced"
+    | "mission_abandoned"
+    | "checkout_started"
+    | "checkout_failed"
+    | "checkout_completed"
+    | "mission_feedback";
+  props?: Record<string, unknown>;
+};
+
 // ---------- App ----------
+
+type ActiveMission = {
+  mission: MissionId;
+  guests: number;
+  date: string;
+};
+
+type CompletedMission = ActiveMission & { completedAt: number; rating?: "up" | "down" };
 
 type Step =
   | { name: "home" }
   | { name: "guests"; mission: MissionId }
   | { name: "date"; mission: MissionId; guests: number }
   | { name: "cart"; mission: MissionId; guests: number; date: string }
+  | { name: "checkoutError"; mission: MissionId; guests: number; date: string; failedMerchant: string }
   | { name: "success"; mission: MissionId; guests: number; date: string }
   | { name: "stores" };
 
 function App() {
   const [step, setStep] = useState<Step>({ name: "home" });
+  const [dismissedThisSession, setDismissedThisSession] = useState(false);
+  const [active, setActive] = useState<ActiveMission | null>(null);
+  const [history, setHistory] = useState<CompletedMission[]>([]);
+  const [pendingReplace, setPendingReplace] = useState<MissionId | null>(null);
+  const [events, setEvents] = useState<AnalyticsEvent[]>([]);
+  const [showEvents, setShowEvents] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const log = (name: AnalyticsEvent["name"], props?: AnalyticsEvent["props"]) =>
+    setEvents((e) => [...e, { ts: Date.now(), name, props }]);
+
+  useEffect(() => {
+    if (step.name === "home" && !dismissedThisSession) log("mission_home_impression");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.name, dismissedThisSession]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const pickMission = (m: MissionId) => {
+    if (active && active.mission !== m) {
+      setPendingReplace(m);
+      return;
+    }
+    if (active && active.mission === m) {
+      // resume
+      setStep({ name: "cart", mission: active.mission, guests: active.guests, date: active.date });
+      return;
+    }
+    setStep({ name: "guests", mission: m });
+  };
+
+  const confirmReplace = () => {
+    if (!pendingReplace) return;
+    log("mission_replaced", { from: active?.mission, to: pendingReplace });
+    setActive(null);
+    setStep({ name: "guests", mission: pendingReplace });
+    setPendingReplace(null);
+  };
 
   return (
     <div className="min-h-screen w-full bg-surface-2 flex items-center justify-center p-0 md:p-8">
-      {/* Phone frame */}
       <div className="relative w-full max-w-[420px] md:rounded-[44px] md:border md:border-hairline bg-background overflow-hidden md:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] min-h-screen md:min-h-[860px] md:max-h-[860px] flex flex-col">
         <StatusBar />
         <div className="flex-1 overflow-y-auto">
-          {step.name === "home" && (
+          {step.name === "home" && !dismissedThisSession && (
             <HomeScreen
-              onPick={(m) => setStep({ name: "guests", mission: m })}
-              onDismiss={() => setStep({ name: "stores" })}
+              active={active}
+              history={history}
+              onPick={pickMission}
+              onResume={() =>
+                active &&
+                setStep({ name: "cart", mission: active.mission, guests: active.guests, date: active.date })
+              }
+              onAbandon={() => {
+                if (!active) return;
+                log("mission_abandoned", { mission: active.mission });
+                setActive(null);
+                setToast("Mission abandoned.");
+              }}
+              onDismiss={() => {
+                log("mission_dismissed");
+                setDismissedThisSession(true);
+                setStep({ name: "stores" });
+              }}
+            />
+          )}
+          {step.name === "home" && dismissedThisSession && (
+            <StoreFallback
+              onBack={() => {
+                // User asked to go back to missions explicitly — allow re-entry
+                setDismissedThisSession(false);
+                setStep({ name: "home" });
+              }}
             />
           )}
           {step.name === "guests" && (
@@ -206,9 +373,11 @@ function App() {
               mission={step.mission}
               guests={step.guests}
               onBack={() => setStep({ name: "guests", mission: step.mission })}
-              onNext={(d) =>
-                setStep({ name: "cart", mission: step.mission, guests: step.guests, date: d })
-              }
+              onNext={(d) => {
+                log("mission_declared", { mission: step.mission, guests: step.guests, date: d });
+                setActive({ mission: step.mission, guests: step.guests, date: d });
+                setStep({ name: "cart", mission: step.mission, guests: step.guests, date: d });
+              }}
             />
           )}
           {step.name === "cart" && (
@@ -217,14 +386,44 @@ function App() {
               guests={step.guests}
               date={step.date}
               onBack={() => setStep({ name: "date", mission: step.mission, guests: step.guests })}
-              onCheckout={() =>
-                setStep({
-                  name: "success",
-                  mission: step.mission,
-                  guests: step.guests,
-                  date: step.date,
-                })
+              onCheckout={(simulateFailure) => {
+                log("checkout_started", { mission: step.mission });
+                if (simulateFailure) {
+                  log("checkout_failed", { merchant: "Ferry Building Wine" });
+                  setStep({
+                    name: "checkoutError",
+                    mission: step.mission,
+                    guests: step.guests,
+                    date: step.date,
+                    failedMerchant: "Ferry Building Wine",
+                  });
+                  return;
+                }
+                log("checkout_completed", { mission: step.mission, guests: step.guests });
+                setActive(null);
+                setHistory((h) => [
+                  { mission: step.mission, guests: step.guests, date: step.date, completedAt: Date.now() },
+                  ...h,
+                ]);
+                setStep({ name: "success", mission: step.mission, guests: step.guests, date: step.date });
+              }}
+            />
+          )}
+          {step.name === "checkoutError" && (
+            <CheckoutErrorScreen
+              merchant={step.failedMerchant}
+              onRetry={() =>
+                setStep({ name: "cart", mission: step.mission, guests: step.guests, date: step.date })
               }
+              onPartial={() => {
+                log("checkout_completed", { mission: step.mission, partial: true });
+                setActive(null);
+                setHistory((h) => [
+                  { mission: step.mission, guests: step.guests, date: step.date, completedAt: Date.now() },
+                  ...h,
+                ]);
+                setStep({ name: "success", mission: step.mission, guests: step.guests, date: step.date });
+              }}
             />
           )}
           {step.name === "success" && (
@@ -232,13 +431,52 @@ function App() {
               mission={step.mission}
               guests={step.guests}
               date={step.date}
+              onRate={(r) => {
+                log("mission_feedback", { rating: r });
+                setHistory((h) =>
+                  h.map((m, i) => (i === 0 ? { ...m, rating: r } : m))
+                );
+              }}
               onDone={() => setStep({ name: "home" })}
             />
           )}
           {step.name === "stores" && (
-            <StoreFallback onBack={() => setStep({ name: "home" })} />
+            <StoreFallback
+              onBack={() => {
+                setDismissedThisSession(false);
+                setStep({ name: "home" });
+              }}
+            />
           )}
         </div>
+
+        {/* Replace mission modal */}
+        {pendingReplace && active && (
+          <ConfirmModal
+            title="Replace your active mission?"
+            body={`You already have an active ${MISSIONS.find((m) => m.id === active.mission)?.title.toLowerCase()} for ${active.guests} guests. Starting a new mission will discard it.`}
+            confirmLabel="Replace mission"
+            onCancel={() => setPendingReplace(null)}
+            onConfirm={confirmReplace}
+          />
+        )}
+
+        {/* Toast */}
+        {toast && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-foreground text-background text-[12.5px] px-4 py-2 rounded-full shadow-lg">
+            {toast}
+          </div>
+        )}
+
+        {/* Analytics debug toggle */}
+        <button
+          onClick={() => setShowEvents((v) => !v)}
+          className="absolute top-2 right-2 text-[10px] uppercase tracking-wider text-ink-soft hover:text-foreground bg-surface/80 backdrop-blur border border-hairline rounded-full px-2 py-1"
+          aria-label="Toggle analytics log"
+        >
+          {showEvents ? "Hide" : "Events"} ({events.length})
+        </button>
+        {showEvents && <EventsPanel events={events} onClose={() => setShowEvents(false)} />}
       </div>
     </div>
   );
@@ -292,10 +530,18 @@ function TopBar({
 // ---------- Home ----------
 
 function HomeScreen({
+  active,
+  history,
   onPick,
+  onResume,
+  onAbandon,
   onDismiss,
 }: {
+  active: ActiveMission | null;
+  history: CompletedMission[];
   onPick: (m: MissionId) => void;
+  onResume: () => void;
+  onAbandon: () => void;
   onDismiss: () => void;
 }) {
   return (
@@ -325,6 +571,45 @@ function HomeScreen({
         </div>
       </div>
 
+      {/* Active mission banner */}
+      {active && (
+        <div className="px-5 pt-5">
+          <div
+            className="rounded-2xl border border-hairline bg-surface p-4 flex items-center gap-3"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
+            <div
+              className="h-10 w-10 rounded-xl flex items-center justify-center text-xl"
+              style={{
+                background: `color-mix(in oklch, ${MISSIONS.find((m) => m.id === active.mission)?.accent} 14%, white)`,
+              }}
+            >
+              {MISSIONS.find((m) => m.id === active.mission)?.emoji}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] uppercase tracking-wider text-ink-soft">Active mission</div>
+              <div className="font-semibold text-[14px] truncate">
+                {MISSIONS.find((m) => m.id === active.mission)?.title} · {active.guests} guests
+              </div>
+            </div>
+            <button
+              onClick={onResume}
+              className="h-9 px-3 rounded-full text-[12.5px] font-semibold text-brand-foreground"
+              style={{ background: "var(--brand)" }}
+            >
+              Resume
+            </button>
+            <button
+              onClick={onAbandon}
+              className="h-9 w-9 rounded-full flex items-center justify-center text-ink-soft hover:text-foreground hover:bg-surface-2"
+              aria-label="Abandon mission"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="px-5 pt-8">
         <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
@@ -336,9 +621,7 @@ function HomeScreen({
           <span style={{ color: "var(--brand)" }}>hosting</span>?
         </h1>
         <p className="mt-3 text-[14px] text-ink-soft leading-relaxed">
-          Pick a mission. We&rsquo;ll assemble one cart across the
-          merchants that do it best — food, drinks, the small things
-          that signal care.
+          Pick a mission. We&rsquo;ll assemble one cart across the merchants that do it best.
         </p>
       </div>
 
@@ -352,6 +635,7 @@ function HomeScreen({
               i === 0 ? "col-span-2" : ""
             }`}
             style={{ boxShadow: "var(--shadow-card)" }}
+            aria-label={`Declare ${m.title} mission`}
           >
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center text-2xl mb-3"
@@ -361,13 +645,9 @@ function HomeScreen({
             >
               {m.emoji}
             </div>
-            <div className="font-semibold text-[15px] tracking-tight">
-              {m.title}
-            </div>
+            <div className="font-semibold text-[15px] tracking-tight">{m.title}</div>
             <div className="text-[12px] text-ink-soft mt-0.5">{m.tagline}</div>
-            <ChevronRight
-              className="absolute top-4 right-4 h-4 w-4 text-ink-soft opacity-0 group-hover:opacity-100 transition"
-            />
+            <ChevronRight className="absolute top-4 right-4 h-4 w-4 text-ink-soft opacity-0 group-hover:opacity-100 transition" />
           </button>
         ))}
       </div>
@@ -384,12 +664,42 @@ function HomeScreen({
           <div className="text-[12.5px] leading-snug">
             <div className="font-semibold">One cart. Multiple merchants.</div>
             <div className="text-ink-soft">
-              Three taps and you&rsquo;re hosting — not project-managing
-              five tabs at midnight.
+              Three taps and you&rsquo;re hosting — not project-managing five tabs at midnight.
             </div>
           </div>
         </div>
       </div>
+
+      {/* Mission history */}
+      {history.length > 0 && (
+        <div className="px-5 pt-8">
+          <div className="text-[11px] uppercase tracking-wider text-ink-soft mb-2">
+            Past missions
+          </div>
+          <div className="space-y-2">
+            {history.slice(0, 3).map((h, idx) => {
+              const m = MISSIONS.find((x) => x.id === h.mission)!;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-hairline bg-surface p-3 flex items-center gap-3"
+                >
+                  <span className="text-xl">{m.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium truncate">{m.title}</div>
+                    <div className="text-[11px] text-ink-soft">
+                      {h.guests} guests ·{" "}
+                      {new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </div>
+                  </div>
+                  {h.rating === "up" && <span className="text-[12px]">👍</span>}
+                  {h.rating === "down" && <span className="text-[12px]">👎</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Fallback */}
       <div className="px-5 pt-8 text-center">
@@ -418,6 +728,10 @@ function GuestsScreen({
 }) {
   const [g, setG] = useState(6);
   const m = MISSIONS.find((x) => x.id === mission)!;
+  const tooSmall = g < 2;
+  const tooBig = g > 40;
+  const edgeWarn = g >= 25 && g <= 40;
+
   return (
     <div className="flex flex-col min-h-full">
       <TopBar title="Step 1 of 2" onBack={onBack} />
@@ -431,7 +745,7 @@ function GuestsScreen({
         </p>
 
         <div className="mt-10 flex items-center justify-center gap-6">
-          <Stepper value={g} onChange={(v) => setG(Math.max(2, Math.min(40, v)))} />
+          <Stepper value={g} onChange={(v) => setG(Math.max(1, Math.min(50, v)))} />
         </div>
 
         <div className="mt-10 grid grid-cols-4 gap-2">
@@ -449,9 +763,20 @@ function GuestsScreen({
             </button>
           ))}
         </div>
+
+        {(tooSmall || tooBig || edgeWarn) && (
+          <div className="mt-6 rounded-xl border border-hairline bg-warn-soft p-3 flex gap-2 items-start">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "var(--warn)" }} />
+            <div className="text-[12.5px] leading-snug">
+              {tooSmall && "Mission carts need at least 2 guests. Try the store grid for solo orders."}
+              {tooBig && "For more than 40 guests, we recommend Catering. Contact ops to scale this template."}
+              {edgeWarn && "Large party — quantities will round up. Double-check before checkout."}
+            </div>
+          </div>
+        )}
       </div>
       <BottomBar>
-        <PrimaryBtn onClick={() => onNext(g)}>
+        <PrimaryBtn disabled={tooSmall || tooBig} onClick={() => onNext(g)}>
           Continue · {g} guests
         </PrimaryBtn>
       </BottomBar>
@@ -499,26 +824,36 @@ function DateScreen({
 }) {
   const m = MISSIONS.find((x) => x.id === mission)!;
   const dates = useMemo(() => {
-    const out: { key: string; weekday: string; day: number; label: string }[] = [];
+    const out: { key: string; weekday: string; day: number; label: string; isPast: boolean }[] = [];
     const now = new Date();
-    for (let i = 0; i < 8; i++) {
+    for (let i = -1; i < 8; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() + i);
       const wk = d.toLocaleDateString("en-US", { weekday: "short" });
       const label =
-        i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "long" });
+        i === -1 ? "Yesterday" :
+        i === 0 ? "Today" :
+        i === 1 ? "Tomorrow" :
+        d.toLocaleDateString("en-US", { weekday: "long" });
       out.push({
         key: d.toISOString().slice(0, 10),
         weekday: wk,
         day: d.getDate(),
         label,
+        isPast: i < 0,
       });
     }
     return out;
   }, []);
-  // pre-select first Saturday for that hosting feel, else today
-  const defaultIdx = dates.findIndex((d) => d.weekday === "Sat");
-  const [sel, setSel] = useState<string>(dates[defaultIdx >= 0 ? defaultIdx : 0].key);
+  const firstValid = dates.findIndex((d) => !d.isPast && d.weekday === "Sat");
+  const [sel, setSel] = useState<string>(
+    dates[firstValid >= 0 ? firstValid : dates.findIndex((d) => !d.isPast)].key
+  );
+
+  const oosMerchants = unavailableMerchantsFor(sel);
+  const oosItems = unavailableItemsFor(sel);
+  const hasSubs = Array.from(oosItems).some((id) => SUBSTITUTIONS[id]);
+  const hasDrops = Array.from(oosItems).some((id) => !SUBSTITUTIONS[id]);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -538,19 +873,18 @@ function DateScreen({
             return (
               <button
                 key={d.key}
-                onClick={() => setSel(d.key)}
+                onClick={() => !d.isPast && setSel(d.key)}
+                disabled={d.isPast}
                 className={`shrink-0 w-[68px] h-[88px] rounded-2xl border flex flex-col items-center justify-center transition ${
-                  active
+                  d.isPast
+                    ? "border-hairline bg-surface-2 text-ink-soft opacity-50 cursor-not-allowed"
+                    : active
                     ? "border-foreground bg-foreground text-background"
                     : "border-hairline bg-surface hover:border-foreground/40"
                 }`}
               >
-                <div className="text-[11px] uppercase tracking-wider opacity-80">
-                  {d.weekday}
-                </div>
-                <div className="text-[24px] font-semibold tabular-nums leading-none mt-1">
-                  {d.day}
-                </div>
+                <div className="text-[11px] uppercase tracking-wider opacity-80">{d.weekday}</div>
+                <div className="text-[24px] font-semibold tabular-nums leading-none mt-1">{d.day}</div>
               </button>
             );
           })}
@@ -560,15 +894,37 @@ function DateScreen({
           <div className="text-[12px] text-ink-soft">Selected</div>
           <div className="font-semibold mt-0.5">
             {dates.find((d) => d.key === sel)?.label} ·{" "}
-            {new Date(sel).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-            })}
+            {new Date(sel).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
           </div>
-          <div className="mt-3 text-[12px] text-ink-soft flex items-center gap-1.5">
-            <Check className="h-3.5 w-3.5" style={{ color: "var(--success)" }} />
-            All 3 merchants available for this date
-          </div>
+
+          {oosMerchants.size === 0 && oosItems.size === 0 && (
+            <div className="mt-3 text-[12px] text-ink-soft flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5" style={{ color: "var(--success)" }} />
+              All merchants available for this date
+            </div>
+          )}
+          {oosMerchants.size > 0 && (
+            <div className="mt-3 text-[12px] flex items-start gap-1.5" style={{ color: "var(--warn)" }}>
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
+              <span>{Array.from(oosMerchants).join(", ")} unavailable — those items will be removed.</span>
+            </div>
+          )}
+          {hasSubs && (
+            <div className="mt-2 text-[12px] flex items-start gap-1.5 text-ink-soft">
+              <RefreshCw className="h-3.5 w-3.5 mt-0.5" />
+              <span>Some items will be substituted with pre-approved alternates.</span>
+            </div>
+          )}
+          {hasDrops && (
+            <div className="mt-2 text-[12px] flex items-start gap-1.5" style={{ color: "var(--warn)" }}>
+              <Info className="h-3.5 w-3.5 mt-0.5" />
+              <span>Some items have no fallback and will be dropped.</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 text-[11px] text-ink-soft px-1">
+          Try different days to see substitution / merchant-down behavior.
         </div>
       </div>
       <BottomBar>
@@ -591,15 +947,27 @@ function CartScreen({
   guests: number;
   date: string;
   onBack: () => void;
-  onCheckout: () => void;
+  onCheckout: (simulateFailure: boolean) => void;
 }) {
   const m = MISSIONS.find((x) => x.id === mission)!;
-  const [items, setItems] = useState<CartItem[]>(() => buildCart(mission, guests));
+  const template = TEMPLATES[mission];
+  const initial = useMemo(() => buildCart(mission, guests, date), [mission, guests, date]);
+  const [items, setItems] = useState<CartItem[]>(initial.items);
+  const [notices, setNotices] = useState(initial.notices);
+
+  // Rebuild when date/guests change (e.g., back/forward)
+  useEffect(() => {
+    setItems(initial.items);
+    setNotices(initial.notices);
+  }, [initial]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.qtyPerGuest, 0);
-  const fees = 5.99;
+  const fees = items.length > 0 ? 5.99 : 0;
   const tax = subtotal * 0.0875;
   const total = subtotal + fees + tax;
+
+  const ceiling = template.priceCeilingPerGuest * guests;
+  const overCeiling = total > ceiling;
 
   const grouped = useMemo(() => {
     const map = new Map<string, CartItem[]>();
@@ -610,13 +978,18 @@ function CartScreen({
     return Array.from(map.entries());
   }, [items]);
 
+  // Delivery-window analysis: do merchant ETAs overlap?
+  const etaMinutes = grouped
+    .map(([merchant]) => template.groups.find((g) => g.merchant === merchant)?.eta)
+    .filter(Boolean)
+    .map((s) => parseInt(s!.match(/\d+/)?.[0] ?? "0", 10));
+  const etaSpread = etaMinutes.length ? Math.max(...etaMinutes) - Math.min(...etaMinutes) : 0;
+  const windowMismatch = etaSpread > 20;
+
   const update = (id: string, delta: number) =>
     setItems((prev) =>
-      prev
-        .map((i) =>
-          i.id === id ? { ...i, qtyPerGuest: Math.max(0, i.qtyPerGuest + delta) } : i
-        )
-        .filter((i) => i.qtyPerGuest > 0)
+      prev.map((i) => (i.id === id ? { ...i, qtyPerGuest: Math.max(0, i.qtyPerGuest + delta) } : i))
+          .filter((i) => i.qtyPerGuest > 0)
     );
 
   const remove = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
@@ -626,6 +999,8 @@ function CartScreen({
     month: "short",
     day: "numeric",
   });
+
+  const cartEmpty = items.length === 0;
 
   return (
     <div className="flex flex-col min-h-full bg-surface-2">
@@ -638,7 +1013,43 @@ function CartScreen({
         </div>
       </div>
 
-      <div className="px-4 pt-4 space-y-4 pb-6">
+      <div className="px-4 pt-4 space-y-3 pb-6">
+        {/* Notices */}
+        {notices.length > 0 && (
+          <div className="rounded-2xl border border-hairline bg-warn-soft p-3 space-y-2">
+            <div className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--warn)" }}>
+              Heads up — {notices.length} change{notices.length > 1 ? "s" : ""} for your date
+            </div>
+            {notices.map((n, idx) => (
+              <div key={idx} className="flex items-start gap-2 text-[12.5px] leading-snug">
+                {n.kind === "sub" && <RefreshCw className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+                {n.kind === "drop" && <Trash2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+                {n.kind === "merchant" && <Store className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+                <span>{n.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {windowMismatch && !cartEmpty && (
+          <div className="rounded-2xl border border-hairline bg-surface p-3 flex items-start gap-2">
+            <Clock className="h-4 w-4 mt-0.5 shrink-0 text-ink-soft" />
+            <div className="text-[12.5px] leading-snug">
+              <span className="font-medium">Delivery windows don&rsquo;t fully overlap</span>
+              <span className="text-ink-soft"> — items will arrive in waves over ~{etaSpread} min.</span>
+            </div>
+          </div>
+        )}
+
+        {cartEmpty && (
+          <div className="rounded-2xl border border-hairline bg-surface p-6 text-center">
+            <div className="text-[14px] font-semibold">No items available</div>
+            <div className="text-[12.5px] text-ink-soft mt-1">
+              Required merchants are down for this date. Try another date or browse stores.
+            </div>
+          </div>
+        )}
+
         {grouped.map(([merchant, list]) => {
           const tmpl = TEMPLATES[mission].groups.find((g) => g.merchant === merchant);
           return (
@@ -650,9 +1061,7 @@ function CartScreen({
               <div className="px-4 py-3 flex items-center justify-between border-b border-hairline">
                 <div>
                   <div className="font-semibold text-[14px]">{merchant}</div>
-                  <div className="text-[11px] text-ink-soft">
-                    Delivered together · {tmpl?.eta}
-                  </div>
+                  <div className="text-[11px] text-ink-soft">Delivered together · {tmpl?.eta}</div>
                 </div>
                 <Store className="h-4 w-4 text-ink-soft" />
               </div>
@@ -666,6 +1075,11 @@ function CartScreen({
                       <div className="text-[14px] font-medium truncate">{i.name}</div>
                       <div className="text-[11.5px] text-ink-soft">
                         ${i.price.toFixed(2)} / {i.unit}
+                        {i.substitutedFrom && (
+                          <span className="ml-1.5 inline-flex items-center gap-1" style={{ color: "var(--warn)" }}>
+                            · <RefreshCw className="h-3 w-3 inline" /> sub
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -705,24 +1119,45 @@ function CartScreen({
         })}
 
         {/* Totals */}
-        <div
-          className="rounded-2xl bg-surface border border-hairline p-4"
-          style={{ boxShadow: "var(--shadow-card)" }}
-        >
-          <Row label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
-          <Row label="Delivery & service" value={`$${fees.toFixed(2)}`} />
-          <Row label="Estimated tax" value={`$${tax.toFixed(2)}`} />
-          <div className="h-px bg-hairline my-2" />
-          <Row label="Total" value={`$${total.toFixed(2)}`} bold />
-          <div className="mt-2 text-[11.5px] text-ink-soft">
-            All fees shown upfront. Single checkout across {grouped.length} merchants.
+        {!cartEmpty && (
+          <div
+            className="rounded-2xl bg-surface border border-hairline p-4"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
+            <Row label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
+            <Row label="Delivery & service" value={`$${fees.toFixed(2)}`} />
+            <Row label="Estimated tax" value={`$${tax.toFixed(2)}`} />
+            <div className="h-px bg-hairline my-2" />
+            <Row label="Total" value={`$${total.toFixed(2)}`} bold />
+            <div className="mt-2 text-[11.5px] text-ink-soft">
+              All fees shown upfront. Single checkout across {grouped.length} merchants.
+            </div>
+            {overCeiling && (
+              <div className="mt-3 rounded-xl bg-warn-soft p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "var(--warn)" }} />
+                <div className="text-[12px] leading-snug">
+                  This cart is above the typical ceiling for {guests} guests
+                  (${ceiling.toFixed(0)}). Flagged for ops review — consider trimming.
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Demo failure trigger */}
+        {!cartEmpty && (
+          <button
+            onClick={() => onCheckout(true)}
+            className="w-full text-[11.5px] text-ink-soft hover:text-foreground py-2"
+          >
+            ⚠ Demo: simulate one merchant failing at checkout
+          </button>
+        )}
       </div>
 
       <BottomBar>
-        <PrimaryBtn onClick={onCheckout}>
-          Checkout · ${total.toFixed(2)}
+        <PrimaryBtn disabled={cartEmpty} onClick={() => onCheckout(false)}>
+          {cartEmpty ? "No items to checkout" : `Checkout · $${total.toFixed(2)}`}
         </PrimaryBtn>
       </BottomBar>
     </div>
@@ -737,9 +1172,66 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       }`}
     >
       <span>{label}</span>
-      <span className={bold ? "text-foreground tabular-nums" : "tabular-nums"}>
-        {value}
-      </span>
+      <span className={bold ? "text-foreground tabular-nums" : "tabular-nums"}>{value}</span>
+    </div>
+  );
+}
+
+// ---------- Checkout Error ----------
+
+function CheckoutErrorScreen({
+  merchant,
+  onRetry,
+  onPartial,
+}: {
+  merchant: string;
+  onRetry: () => void;
+  onPartial: () => void;
+}) {
+  return (
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Checkout issue" />
+      <div className="flex-1 px-6 pt-10 flex flex-col items-center text-center">
+        <div
+          className="h-14 w-14 rounded-full flex items-center justify-center"
+          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}
+        >
+          <AlertTriangle className="h-7 w-7" />
+        </div>
+        <h2 className="mt-5 text-[22px] font-semibold tracking-tight">
+          One merchant didn&rsquo;t go through
+        </h2>
+        <p className="mt-2 text-[13.5px] text-ink-soft max-w-[300px]">
+          <span className="font-medium text-foreground">{merchant}</span> closed before we could
+          confirm. Your other merchants are ready. No payment has been charged yet.
+        </p>
+
+        <div className="mt-6 w-full rounded-2xl border border-hairline bg-surface p-4 text-left text-[12.5px] space-y-2">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4" style={{ color: "var(--success)" }} />
+            <span>Rainbow Grocery — ready</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4" style={{ color: "var(--success)" }} />
+            <span>Bloomwell Florals — ready</span>
+          </div>
+          <div className="flex items-center gap-2" style={{ color: "var(--warn)" }}>
+            <X className="h-4 w-4" />
+            <span>{merchant} — unavailable</span>
+          </div>
+        </div>
+      </div>
+      <BottomBar>
+        <div className="space-y-2">
+          <PrimaryBtn onClick={onPartial}>Continue without {merchant}</PrimaryBtn>
+          <button
+            onClick={onRetry}
+            className="w-full h-11 rounded-full border border-hairline font-medium text-[14px] hover:bg-surface-2"
+          >
+            Back to cart & swap
+          </button>
+        </div>
+      </BottomBar>
     </div>
   );
 }
@@ -750,14 +1242,17 @@ function SuccessScreen({
   mission,
   guests,
   date,
+  onRate,
   onDone,
 }: {
   mission: MissionId;
   guests: number;
   date: string;
+  onRate: (r: "up" | "down") => void;
   onDone: () => void;
 }) {
   const m = MISSIONS.find((x) => x.id === mission)!;
+  const [rated, setRated] = useState<"up" | "down" | null>(null);
   const dateLabel = new Date(date).toLocaleDateString("en-US", {
     weekday: "long",
     month: "short",
@@ -776,8 +1271,8 @@ function SuccessScreen({
           Mission accepted.
         </h2>
         <p className="mt-3 text-[14px] text-ink-soft max-w-[300px]">
-          Your {m.title.toLowerCase()} for {guests} on {dateLabel} is on its way.
-          Show up. Be the host. We&rsquo;ll handle the rest.
+          Your {m.title.toLowerCase()} for {guests} on {dateLabel} is on its way. Show up. Be the
+          host. We&rsquo;ll handle the rest.
         </p>
 
         <div className="mt-8 w-full rounded-2xl border border-hairline bg-surface p-4 text-left">
@@ -785,10 +1280,20 @@ function SuccessScreen({
             How did the gathering go?
           </div>
           <div className="mt-3 flex gap-2">
-            <button className="flex-1 h-11 rounded-xl border border-hairline font-medium hover:bg-surface-2">
+            <button
+              onClick={() => { setRated("up"); onRate("up"); }}
+              className={`flex-1 h-11 rounded-xl border font-medium transition ${
+                rated === "up" ? "border-foreground bg-foreground text-background" : "border-hairline hover:bg-surface-2"
+              }`}
+            >
               👍 Worked
             </button>
-            <button className="flex-1 h-11 rounded-xl border border-hairline font-medium hover:bg-surface-2">
+            <button
+              onClick={() => { setRated("down"); onRate("down"); }}
+              className={`flex-1 h-11 rounded-xl border font-medium transition ${
+                rated === "down" ? "border-foreground bg-foreground text-background" : "border-hairline hover:bg-surface-2"
+              }`}
+            >
               👎 Missed
             </button>
           </div>
@@ -819,7 +1324,6 @@ function StoreFallback({ onBack }: { onBack: () => void }) {
     <div className="flex flex-col min-h-full">
       <TopBar
         title="Stores near you"
-        onBack={onBack}
         right={
           <button
             onClick={onBack}
@@ -834,6 +1338,9 @@ function StoreFallback({ onBack }: { onBack: () => void }) {
         <div className="h-11 rounded-full bg-surface-2 border border-hairline flex items-center px-4 gap-2 text-ink-soft text-sm">
           <Search className="h-4 w-4" />
           <span>Search DoorDash</span>
+        </div>
+        <div className="mt-3 text-[11.5px] text-ink-soft px-1">
+          Mission-First Home dismissed for this session. Tap &ldquo;Missions&rdquo; to reopen.
         </div>
       </div>
       <div className="px-4 pt-4 space-y-2 pb-6">
@@ -897,14 +1404,17 @@ function BottomBar({ children }: { children: React.ReactNode }) {
 function PrimaryBtn({
   onClick,
   children,
+  disabled,
 }: {
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full h-12 rounded-full font-semibold text-[15px] active:scale-[0.99] transition"
+      disabled={disabled}
+      className="w-full h-12 rounded-full font-semibold text-[15px] active:scale-[0.99] transition disabled:opacity-40 disabled:cursor-not-allowed"
       style={{
         background: "var(--brand)",
         color: "var(--brand-foreground)",
@@ -912,5 +1422,80 @@ function PrimaryBtn({
     >
       {children}
     </button>
+  );
+}
+
+function ConfirmModal({
+  title,
+  body,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-end md:items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-[360px] rounded-3xl bg-background p-5 shadow-xl">
+        <div className="text-[17px] font-semibold tracking-tight">{title}</div>
+        <p className="mt-2 text-[13.5px] text-ink-soft leading-snug">{body}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            onClick={onCancel}
+            className="h-11 rounded-full border border-hairline font-medium text-[14px] hover:bg-surface-2"
+          >
+            Keep current
+          </button>
+          <button
+            onClick={onConfirm}
+            className="h-11 rounded-full font-semibold text-[14px] text-brand-foreground"
+            style={{ background: "var(--brand)" }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventsPanel({
+  events,
+  onClose,
+}: {
+  events: AnalyticsEvent[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute top-10 right-2 z-30 w-[260px] max-h-[60vh] overflow-y-auto rounded-xl border border-hairline bg-background shadow-xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-soft">
+          Analytics events
+        </div>
+        <button onClick={onClose} aria-label="Close" className="text-ink-soft hover:text-foreground">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {events.length === 0 ? (
+        <div className="text-[12px] text-ink-soft">No events yet.</div>
+      ) : (
+        <ul className="space-y-1.5">
+          {events.slice().reverse().map((e, idx) => (
+            <li key={idx} className="text-[11px] font-mono leading-tight">
+              <div className="font-semibold">{e.name}</div>
+              {e.props && (
+                <div className="text-ink-soft truncate">
+                  {Object.entries(e.props).map(([k, v]) => `${k}=${String(v)}`).join(" ")}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
