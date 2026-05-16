@@ -477,7 +477,8 @@ function App() {
         {/* Analytics debug toggle */}
         <button
           onClick={() => setShowEvents((v) => !v)}
-          className="absolute top-2 right-2 text-[10px] uppercase tracking-wider text-ink-soft hover:text-foreground bg-surface/80 backdrop-blur border border-hairline rounded-full px-2 py-1"
+          className="absolute bottom-24 right-3 z-30 text-[10px] uppercase tracking-wider text-ink-soft hover:text-foreground bg-surface/90 backdrop-blur border border-hairline rounded-full px-2.5 py-1.5 shadow-sm"
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
           aria-label="Toggle analytics log"
         >
           {showEvents ? "Hide" : "Events"} ({events.length})
