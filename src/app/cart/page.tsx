@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from "@/components/ui/sheet";
-import { MapPin, Clock, Info, CheckCircle2 } from "lucide-react";
+import { MapPin, Clock, Info, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -167,10 +167,13 @@ export default function CartPage() {
                         <Accordion type="single" collapsible className="w-full mt-2 border-none">
                           <AccordionItem value="reasoning" className="border-none">
                             <AccordionTrigger className="py-1 hover:no-underline text-xs text-primary font-medium flex gap-1 justify-start">
-                              <Info className="w-3.5 h-3.5 mr-1" />
+                              <Sparkles className="w-3.5 h-3.5 mr-1" />
                               Why these picks?
                             </AccordionTrigger>
                             <AccordionContent className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg mt-1 border border-border">
+                              <div className="flex gap-1.5 mb-1 items-center">
+                                <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider">AI Curated</span>
+                              </div>
                               {item.reasoning}
                             </AccordionContent>
                           </AccordionItem>
