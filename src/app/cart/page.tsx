@@ -126,10 +126,8 @@ export default function CartPage() {
                         {/* Feature 5: Mission-Aware Substitutions - Specifically for p1 to demo */}
                         {item.product.id === "p1" && (
                           <Sheet open={substitutionSheetOpen} onOpenChange={setSubstitutionSheetOpen}>
-                            <SheetTrigger asChild>
-                              <Button variant="secondary" size="sm" className="mt-2 h-7 text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200">
+                            <SheetTrigger className="inline-flex items-center justify-center whitespace-nowrap mt-2 h-8 rounded-full px-4 text-xs font-bold bg-red-50 text-[#EB1700] hover:bg-red-100 border border-red-200">
                                 Try a substitution
-                              </Button>
                             </SheetTrigger>
                             <SheetContent side="bottom" className="rounded-t-3xl border-t-0 p-6 pb-12 max-h-[90vh] overflow-y-auto">
                               <SheetHeader className="text-left mb-6">

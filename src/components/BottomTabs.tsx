@@ -30,7 +30,7 @@ export function BottomTabs() {
   ];
 
   return (
-    <div className="absolute bottom-0 inset-x-0 h-20 bg-background/95 backdrop-blur-md border-t border-border flex items-start justify-between px-6 pt-3 pb-8 z-40">
+    <div className="absolute bottom-0 inset-x-0 h-20 bg-background/95 backdrop-blur-md border-t border-border flex items-start justify-between px-6 pt-3 pb-8 z-40 rounded-b-[47px]">
       {tabs.map((tab) => {
         const isActive = pathname === tab.href;
         const Icon = tab.icon;

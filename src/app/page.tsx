@@ -63,7 +63,12 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-full px-6 relative">
       <div className="flex items-center justify-between py-4">
-        <h1 className="text-[28px] font-black text-[#EB1700] tracking-tighter">DOORDASH</h1>
+        <div className="flex items-center gap-2">
+          <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.06 17.58H0c0-6.17 6.42-11.18 14.34-11.18 7.9 0 14.34 5 14.34 11.18h-6.62zM33.38 29.82H11.33c0-6.18 6.43-11.2 14.35-11.2 7.9 0 14.34 5.02 14.34 11.2h-6.64z" fill="#EB1700"/>
+          </svg>
+          <h1 className="text-[26px] font-black text-[#EB1700] tracking-tighter">DOORDASH</h1>
+        </div>
         {/* Simulate Next Day Toggle Button - prototype only */}
         <Button 
           variant="outline" 
@@ -105,7 +110,7 @@ export default function HomePage() {
             <h2 className="text-xl font-semibold relative z-10">Get dinner on the table in 45 minutes</h2>
           </button>
 
-          <button
+          <div
             className="w-full text-left p-6 rounded-2xl bg-muted/50 border border-transparent shadow-sm"
           >
             <input 
@@ -114,7 +119,7 @@ export default function HomePage() {
               className="w-full bg-transparent outline-none text-xl font-semibold placeholder:text-muted-foreground"
               disabled
             />
-          </button>
+          </div>
         </div>
 
         <p className="text-center text-muted-foreground mt-8 text-sm">

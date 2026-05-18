@@ -10,10 +10,10 @@ export const merchants: Merchant[] = [
 export const products: Record<string, Product> = {
   p1: { id: "p1", merchantId: "m1", name: "Sauvignon Blanc, Marlborough", price: 28, image: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?w=300&q=80" },
   p2: { id: "p2", merchantId: "m1", name: "Pinot Noir, Willamette", price: 34, image: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=300&q=80" },
-  p3: { id: "p3", merchantId: "m1", name: "Prosecco Superiore", price: 30, image: "https://images.unsplash.com/photo-1598345151532-6a6c2fa2194b?w=300&q=80" },
+  p3: { id: "p3", merchantId: "m1", name: "Prosecco Superiore", price: 30, image: "https://images.unsplash.com/photo-1578326457388-37d4e3e3bba5?w=300&q=80" },
   p4: { id: "p4", merchantId: "m1", name: "Sancerre (Alternative)", price: 28, image: "https://images.unsplash.com/photo-1585553616435-2dc0a54e271d?w=300&q=80" },
   p5: { id: "p5", merchantId: "m2", name: "Aged Cheddar & Gouda Board", price: 24, image: "https://images.unsplash.com/photo-1631379578987-1959725f1b5c?w=300&q=80" },
-  p6: { id: "p6", merchantId: "m2", name: "Soft Cheeses & Fig Jam", price: 24, image: "https://images.unsplash.com/photo-1559561853-08451507cbe7?w=300&q=80" },
+  p6: { id: "p6", merchantId: "m2", name: "Soft Cheeses & Fig Jam", price: 24, image: "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=300&q=80" },
   p7: { id: "p7", merchantId: "m2", name: "Vouvray (Alternative)", price: 24, image: "https://images.unsplash.com/photo-1565551329241-d5f0e34c6e18?w=300&q=80" },
   p8: { id: "p8", merchantId: "m3", name: "Seasonal Peony Bouquet", price: 32, image: "https://images.unsplash.com/photo-1563241598-6ce2b7936a28?w=300&q=80" },
   p9: { id: "p9", merchantId: "m4", name: "Artisan Baguette & Crackers", price: 12, image: "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=300&q=80" },
