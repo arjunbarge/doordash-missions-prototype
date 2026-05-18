@@ -64,9 +64,7 @@ export default function HomePage() {
     <div className="flex flex-col h-full px-6 relative">
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-2">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M23.1664 10.6033C23.1664 4.74728 18.4191 0 12.5631 0C6.7071 0 1.9598 4.74728 1.9598 10.6033H13.6263C14.7335 10.6033 15.631 11.5008 15.631 12.608C15.631 13.7152 14.7335 14.6127 13.6263 14.6127H0V16.3533H13.6263C15.6946 16.3533 17.3713 14.6766 17.3713 12.6083C17.3713 10.54 15.6946 8.86333 13.6263 8.86333H3.8598C4.54247 4.93121 7.95471 1.89066 12.0631 1.89066C16.8529 1.89066 20.7363 5.774 20.7363 10.5638V24H23.1664V10.6033Z" fill="#EB1700"/>
-          </svg>
+          <img src="https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.doordash.com&size=128" alt="DoorDash Logo" width={28} height={28} className="rounded-full" />
           <h1 className="text-[26px] font-black text-[#EB1700] tracking-tighter">DOORDASH</h1>
         </div>
         {/* Simulate Next Day Toggle Button - prototype only */}
@@ -110,24 +108,12 @@ export default function HomePage() {
             <h2 className="text-xl font-semibold relative z-10">Get dinner on the table in 45 minutes</h2>
           </button>
 
-          <div
-            className="w-full text-left p-6 rounded-2xl bg-muted/50 border border-transparent shadow-sm hover:shadow-md transition-all focus-within:ring-2 focus-within:ring-primary/20"
+          <button
+            onClick={() => handleMissionSelect("other")}
+            className="w-full text-left p-6 rounded-2xl bg-muted/50 border border-transparent shadow-sm hover:shadow-md transition-all active:scale-[0.98] active:bg-muted/80 focus:outline-none focus:ring-2 focus:ring-primary/20 relative overflow-hidden group"
           >
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const input = e.currentTarget.elements.namedItem("mission") as HTMLInputElement;
-              if (input.value.trim()) {
-                handleMissionSelect("other");
-              }
-            }}>
-              <input 
-                name="mission"
-                type="text" 
-                placeholder="Other mission..." 
-                className="w-full bg-transparent outline-none text-xl font-semibold placeholder:text-muted-foreground text-foreground"
-              />
-            </form>
-          </div>
+            <h2 className="text-xl font-semibold relative z-10 text-muted-foreground">Other mission...</h2>
+          </button>
         </div>
 
         <p className="text-center text-muted-foreground mt-8 text-sm">
