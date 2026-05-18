@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 
 export default function CartPage() {
   const router = useRouter();
-  const { cart, swapCartItem, missionDate, guestCount } = useMissionStore();
+  const { cart, swapCartItem, missionDate, guestCount, orderStatus } = useMissionStore();
   const [substitutionSheetOpen, setSubstitutionSheetOpen] = useState(false);
 
   // Group items by merchant
@@ -183,12 +183,21 @@ export default function CartPage() {
       </div>
 
       <div className="absolute bottom-20 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-border/50 flex flex-col items-center">
-         <Button 
-          className="w-full h-14 rounded-full text-lg font-bold shadow-lg shadow-primary/25 bg-[#EB1700] hover:bg-[#EB1700]/90 text-white"
-          onClick={handleCheckout}
-        >
-          Place Mission Order
-        </Button>
+        {orderStatus === "placed" ? (
+          <Button 
+            className="w-full h-14 rounded-full text-lg font-bold shadow-lg shadow-primary/10 bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => router.push("/missions")}
+          >
+            Mission in Progress
+          </Button>
+        ) : (
+          <Button 
+            className="w-full h-14 rounded-full text-lg font-bold shadow-lg shadow-primary/25 bg-[#EB1700] hover:bg-[#EB1700]/90 text-white"
+            onClick={handleCheckout}
+          >
+            Place Mission Order
+          </Button>
+        )}
       </div>
 
       {/* Substitution Overlay (Mobile Contained) */}

@@ -22,6 +22,10 @@ interface MissionStore {
   setCart: (items: CartItem[]) => void;
   swapCartItem: (oldProductId: string, newItem: CartItem) => void;
   
+  // Order state
+  orderStatus: "building" | "placed" | "completed";
+  setOrderStatus: (status: "building" | "placed" | "completed") => void;
+  
   // Past Missions state
   pastMissions: Mission[];
   addCompletedMission: (mission: Mission) => void;
@@ -48,10 +52,13 @@ export const useMissionStore = create<MissionStore>((set) => ({
     cart: state.cart.map(item => item.product.id === oldProductId ? newItem : item)
   })),
   
+  orderStatus: "building",
+  setOrderStatus: (status) => set({ orderStatus: status }),
+  
   pastMissions: mockPastMissions,
   addCompletedMission: (mission) => set((state) => ({
     pastMissions: [mission, ...state.pastMissions]
   })),
   
-  resetMission: () => set({ declaredMissionType: null, selectedTemplate: null, cart: [] }),
+  resetMission: () => set({ declaredMissionType: null, selectedTemplate: null, cart: [], orderStatus: "building" }),
 }));

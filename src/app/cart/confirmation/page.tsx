@@ -3,11 +3,16 @@
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
+import { useEffect } from "react";
 import { useMissionStore } from "@/lib/store";
 
 export default function ConfirmationPage() {
   const router = useRouter();
-  const { guestCount, missionDate } = useMissionStore();
+  const { guestCount, missionDate, setOrderStatus } = useMissionStore();
+
+  useEffect(() => {
+    setOrderStatus("placed");
+  }, [setOrderStatus]);
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-8 text-center bg-white">

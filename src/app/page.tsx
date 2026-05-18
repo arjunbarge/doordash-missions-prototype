@@ -42,20 +42,13 @@ export default function HomePage() {
       setIsListening(false);
       setIsProcessing(true);
       
-      // Simulate processing and directly route to AI cart
-      setTimeout(async () => {
+      // Simulate processing and directly route to offline cart
+      setTimeout(() => {
         setDeclaredMission("dinner-party", 6, "Saturday, May 16, 2026");
-        try {
-          const aiCuratedCart = await generateMissionCart("dinner-party", 6);
-          setCart(aiCuratedCart);
-          setVoiceSheetOpen(false);
-          router.push("/cart");
-        } catch (error) {
-          toast.success("Using Mission Template logic (AI offline)");
-          setCart(templates[0].defaultItems);
-          setVoiceSheetOpen(false);
-          router.push("/cart");
-        }
+        toast.success("Using Mission Template logic (AI offline)");
+        setCart(templates[0].defaultItems);
+        setVoiceSheetOpen(false);
+        router.push("/cart");
       }, 2000);
     }, 2500);
   };
