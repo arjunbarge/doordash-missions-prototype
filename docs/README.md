@@ -7,7 +7,6 @@ This project is the final-week prototype deliverable for the Kellogg MBA Tech Pr
 
 ## Demo Links
 - Prototype Repo: [arjunbarge/doordash-missions-prototype](https://github.com/arjunbarge/doordash-missions-prototype)
-- Live Demo: Deployable via Vercel
 
 ## Team
 Team A: Arjun Barge, Michelle Wu, Erik Beitel, Shinjini Biswas, Rohan Kumar

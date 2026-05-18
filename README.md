@@ -4,7 +4,6 @@ This is the consolidated repository for **DoorDash Missions**, a final-week inte
 
 This unified repository contains both the **Next.js interactive prototype** and the **complete project documentation** (Product Requirements, Design System, Technical Decisions, User Research, etc.) located under the `/docs` directory.
 
-**Demo Link:** [Vercel Deployment URL will go here]  
 **Handover Documentation:** [docs/FINAL_HANDOVER.md](docs/FINAL_HANDOVER.md)  
 **All Project Docs:** View the `/docs` folder for full specs.
 
