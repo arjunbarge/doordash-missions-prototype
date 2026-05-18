@@ -75,7 +75,12 @@ export default function CartPage() {
             <p className="text-sm font-medium text-primary">Saturday, May 23 at 6 PM</p>
             <p className="text-xs text-primary/80">Boss + {guestCount - 1} guests</p>
           </div>
-          <Button variant="ghost" size="sm" className="text-primary h-8 px-2 text-xs font-semibold">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-primary h-8 px-2 text-xs font-semibold"
+            onClick={() => toast.info('Parameter editing is disabled while AI Orchestrator is offline')}
+          >
             Edit
           </Button>
         </div>
