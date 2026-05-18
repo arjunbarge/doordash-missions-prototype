@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function MissionsPage() {
   const router = useRouter();
-  const { pastMissions, declaredMissionType, missionDate, guestCount, setDeclaredMission, setSelectedTemplate } = useMissionStore();
+  const { pastMissions, declaredMissionType, missionDate, guestCount, setDeclaredMission, setSelectedTemplate, cart } = useMissionStore();
 
   const handleRunAgain = (mission: Mission) => {
     setDeclaredMission(mission.type, mission.guestCount, "Next Saturday, 7 PM");
@@ -36,7 +36,7 @@ export default function MissionsPage() {
       <div className="flex-1 overflow-y-auto px-6 py-6 pb-32 space-y-6">
         
         {/* Current In-Progress Mission */}
-        {declaredMissionType && (
+        {(declaredMissionType && cart.length > 0) && (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">In Progress</h2>
             <Card className="border-primary/20 bg-primary/5 shadow-sm overflow-hidden">

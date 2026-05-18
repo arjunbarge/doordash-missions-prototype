@@ -64,8 +64,8 @@ export default function HomePage() {
     <div className="flex flex-col h-full px-6 relative">
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-2">
-          <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22.06 17.58H0c0-6.17 6.42-11.18 14.34-11.18 7.9 0 14.34 5 14.34 11.18h-6.62zM33.38 29.82H11.33c0-6.18 6.43-11.2 14.35-11.2 7.9 0 14.34 5.02 14.34 11.2h-6.64z" fill="#EB1700"/>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M23.1664 10.6033C23.1664 4.74728 18.4191 0 12.5631 0C6.7071 0 1.9598 4.74728 1.9598 10.6033H13.6263C14.7335 10.6033 15.631 11.5008 15.631 12.608C15.631 13.7152 14.7335 14.6127 13.6263 14.6127H0V16.3533H13.6263C15.6946 16.3533 17.3713 14.6766 17.3713 12.6083C17.3713 10.54 15.6946 8.86333 13.6263 8.86333H3.8598C4.54247 4.93121 7.95471 1.89066 12.0631 1.89066C16.8529 1.89066 20.7363 5.774 20.7363 10.5638V24H23.1664V10.6033Z" fill="#EB1700"/>
           </svg>
           <h1 className="text-[26px] font-black text-[#EB1700] tracking-tighter">DOORDASH</h1>
         </div>
@@ -111,14 +111,22 @@ export default function HomePage() {
           </button>
 
           <div
-            className="w-full text-left p-6 rounded-2xl bg-muted/50 border border-transparent shadow-sm"
+            className="w-full text-left p-6 rounded-2xl bg-muted/50 border border-transparent shadow-sm hover:shadow-md transition-all focus-within:ring-2 focus-within:ring-primary/20"
           >
-            <input 
-              type="text" 
-              placeholder="Other mission..." 
-              className="w-full bg-transparent outline-none text-xl font-semibold placeholder:text-muted-foreground"
-              disabled
-            />
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.currentTarget.elements.namedItem("mission") as HTMLInputElement;
+              if (input.value.trim()) {
+                handleMissionSelect("other");
+              }
+            }}>
+              <input 
+                name="mission"
+                type="text" 
+                placeholder="Other mission..." 
+                className="w-full bg-transparent outline-none text-xl font-semibold placeholder:text-muted-foreground text-foreground"
+              />
+            </form>
           </div>
         </div>
 

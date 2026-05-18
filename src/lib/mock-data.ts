@@ -46,7 +46,12 @@ export const templates: Template[] = [
     summary: "Batched cocktails, abundant appetizers, lots of ice",
     estimatedTotal: 320,
     merchantCount: 3,
-    defaultItems: [],
+    defaultItems: [
+      { product: products.p5, quantity: 2, reasoning: "Double portions of cheese board for a larger standing crowd." },
+      { product: products.p6, quantity: 2, reasoning: "More soft cheeses for easy spreading." },
+      { product: products.p9, quantity: 4, reasoning: "Lots of crackers needed for 12 guests." },
+      { product: products.p10, quantity: 3, reasoning: "Plenty of sparkling water and ice for batched cocktails." }
+    ],
   },
   {
     id: "t3",
@@ -55,7 +60,11 @@ export const templates: Template[] = [
     summary: "Cold brew, bagels, lox, fresh fruit",
     estimatedTotal: 145,
     merchantCount: 2,
-    defaultItems: [],
+    defaultItems: [
+      { product: products.p3, quantity: 3, reasoning: "Prosecco for Sunday morning mimosas." },
+      { product: products.p8, quantity: 1, reasoning: "A fresh bouquet to brighten the brunch table." },
+      { product: products.p9, quantity: 2, reasoning: "Fresh baguettes for the spread." }
+    ],
   }
 ];
 
