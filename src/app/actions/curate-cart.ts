@@ -34,7 +34,7 @@ INSTRUCTIONS:
 5. Select a balanced mix of 4-6 items across different merchants to demonstrate a multi-merchant cart.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       contents: missionContext,
       config: {
         responseMimeType: "application/json",
