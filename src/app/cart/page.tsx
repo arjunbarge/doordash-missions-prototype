@@ -120,7 +120,12 @@ export default function CartPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-2">
                           <h4 className="font-medium text-sm leading-tight text-foreground">{item.product.name}</h4>
-                          <span className="font-semibold text-sm shrink-0">${item.product.price}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-semibold text-sm shrink-0">${(item.product.price * item.quantity).toFixed(2)}</span>
+                            {item.quantity > 1 && (
+                              <span className="text-[10px] text-muted-foreground">${item.product.price} / ea</span>
+                            )}
+                          </div>
                         </div>
                         
                         {/* Feature 5: Mission-Aware Substitutions - Specifically for p1 to demo */}
