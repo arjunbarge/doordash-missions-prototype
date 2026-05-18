@@ -128,46 +128,13 @@ export default function CartPage() {
                           </div>
                         </div>
                         
-                        {/* Feature 5: Mission-Aware Substitutions - Specifically for p1 to demo */}
                         {item.product.id === "p1" && (
-                          <Sheet open={substitutionSheetOpen} onOpenChange={setSubstitutionSheetOpen}>
-                            <SheetTrigger className="inline-flex items-center justify-center whitespace-nowrap mt-2 h-8 rounded-full px-4 text-xs font-bold bg-red-50 text-[#EB1700] hover:bg-red-100 border border-red-200">
-                                Try a substitution
-                            </SheetTrigger>
-                            <SheetContent side="bottom" className="rounded-t-3xl border-t-0 p-6 pb-12 max-h-[90vh] overflow-y-auto">
-                              <SheetHeader className="text-left mb-6">
-                                <SheetTitle className="text-2xl font-semibold">Substitution Logic</SheetTitle>
-                                <SheetDescription className="text-base mt-2">
-                                  This wine is out of stock at {merchant.name}. Based on your party mission (intimate dinner, seafood-leaning menu, {guestCount} guests), we'd swap to a <strong className="text-foreground">Sancerre</strong> from {merchant.name} ($28), or hold the slot and pull a <strong className="text-foreground">Vouvray</strong> from Pastoral ($24).
-                                </SheetDescription>
-                              </SheetHeader>
-                              
-                              <div className="space-y-4">
-                                <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-2xl flex justify-between items-center">
-                                  <div className="flex gap-3 items-center">
-                                    <div className="w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0">
-                                      <img src={products.p4.image} className="object-cover w-full h-full" />
-                                    </div>
-                                    <div>
-                                      <h4 className="font-semibold">{products.p4.name}</h4>
-                                      <p className="text-sm text-muted-foreground">{merchant.name}</p>
-                                    </div>
-                                  </div>
-                                  <span className="font-semibold">${products.p4.price}</span>
-                                </div>
-                                
-                                <Button className="w-full text-lg h-14 rounded-xl" onClick={() => handleSwap("p1", "p4")}>
-                                  Accept Sancerre swap
-                                </Button>
-                                <Button variant="outline" className="w-full h-12 rounded-xl text-muted-foreground border-border" onClick={() => setSubstitutionSheetOpen(false)}>
-                                  See all alternatives
-                                </Button>
-                              </div>
-                            </SheetContent>
-                          </Sheet>
+                          <button onClick={() => setSubstitutionSheetOpen(true)} className="inline-flex items-center justify-center whitespace-nowrap mt-2 h-8 rounded-full px-4 text-xs font-bold bg-red-50 text-[#EB1700] hover:bg-red-100 border border-red-200">
+                              Try a substitution
+                          </button>
                         )}
 
-                        <Accordion type="single" collapsible className="w-full mt-2 border-none">
+                        <Accordion type="single" className="w-full mt-2 border-none">
                           <AccordionItem value="reasoning" className="border-none">
                             <AccordionTrigger className="py-1 hover:no-underline text-xs text-primary font-medium flex gap-1 justify-start">
                               <Sparkles className="w-3.5 h-3.5 mr-1" />
@@ -223,6 +190,42 @@ export default function CartPage() {
           Place Mission Order
         </Button>
       </div>
+
+      {/* Substitution Overlay (Mobile Contained) */}
+      {substitutionSheetOpen && (
+        <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-white rounded-t-[32px] p-6 pb-16 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="text-left mb-6">
+              <h2 className="text-2xl font-semibold">Substitution Logic</h2>
+              <p className="text-base mt-2 text-muted-foreground">
+                This wine is out of stock at Bin 36 Wine Shop. Based on your party mission (intimate dinner, seafood-leaning menu, {guestCount} guests), we'd swap to a <strong className="text-foreground">Sancerre</strong> from Bin 36 ($28), or hold the slot and pull a <strong className="text-foreground">Vouvray</strong> from Pastoral ($24).
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-2xl flex justify-between items-center">
+                <div className="flex gap-3 items-center">
+                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0">
+                    <img src={products.p4.image} className="object-cover w-full h-full" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold">{products.p4.name}</h4>
+                    <p className="text-sm text-muted-foreground">Bin 36 Wine Shop</p>
+                  </div>
+                </div>
+                <span className="font-semibold">${products.p4.price}</span>
+              </div>
+              
+              <Button className="w-full text-lg h-14 rounded-xl" onClick={() => handleSwap("p1", "p4")}>
+                Accept Sancerre swap
+              </Button>
+              <Button variant="outline" className="w-full h-12 rounded-xl text-muted-foreground border-border" onClick={() => setSubstitutionSheetOpen(false)}>
+                See all alternatives
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
