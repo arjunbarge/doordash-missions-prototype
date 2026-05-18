@@ -13,6 +13,10 @@ interface MissionStore {
   selectedTemplate: Template | null;
   setSelectedTemplate: (template: Template) => void;
   
+  // Curating state
+  isCurating: boolean;
+  setCurating: (isCurating: boolean) => void;
+  
   // Cart state
   cart: CartItem[];
   setCart: (items: CartItem[]) => void;
@@ -33,7 +37,10 @@ export const useMissionStore = create<MissionStore>((set) => ({
   setDeclaredMission: (type, guests, date) => set({ declaredMissionType: type, guestCount: guests, missionDate: date }),
   
   selectedTemplate: null,
-  setSelectedTemplate: (template) => set({ selectedTemplate: template, cart: template.defaultItems }),
+  setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+  
+  isCurating: false,
+  setCurating: (isCurating) => set({ isCurating }),
   
   cart: [],
   setCart: (items) => set({ cart: items }),
