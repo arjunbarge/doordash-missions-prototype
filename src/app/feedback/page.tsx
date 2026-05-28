@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Textarea } from "@/components/ui/textarea"; // wait, I might not have Textarea component, I'll use standard text area with tailwind classes
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function FeedbackPage() {
   const router = useRouter();
@@ -16,10 +14,18 @@ export default function FeedbackPage() {
   const [itemRatings, setItemRatings] = useState<Record<string, "up" | "down">>({});
   const [notes, setNotes] = useState("");
 
+  const getMissionTitle = (type: string | null) => {
+    if (type === "dinner-party") return "dinner party";
+    if (type === "sick-day") return "sick-day spread";
+    if (type === "45-min-dinner") return "45-minute dinner";
+    return "mission";
+  };
+
   const handleSave = () => {
+    const title = declaredMissionType === "dinner-party" ? "Saturday Dinner Party" : declaredMissionType === "sick-day" ? "Sick-day Spread" : "45-min Dinner";
     addCompletedMission({
       id: `miss-${Date.now()}`,
-      title: "Saturday Dinner Party",
+      title,
       type: declaredMissionType || "dinner-party",
       date: missionDate,
       guestCount,
@@ -40,7 +46,7 @@ export default function FeedbackPage() {
           Mission Complete
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          How did your {guestCount}-guest dinner party go?
+          How did your {guestCount}-guest {getMissionTitle(declaredMissionType)} go?
         </p>
       </div>
 
@@ -116,7 +122,7 @@ export default function FeedbackPage() {
 
       </div>
 
-      <div className="fixed bottom-20 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-border/50 flex flex-col items-center">
+      <div className="absolute bottom-20 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-border/50 flex flex-col items-center">
         <Button 
           className="w-[calc(100%-2rem)] max-w-[361px] h-14 rounded-full text-lg font-semibold shadow-lg shadow-primary/25"
           onClick={handleSave}

@@ -12,7 +12,7 @@ import { Sparkles } from "lucide-react";
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const { guestCount, declaredMissionType, setSelectedTemplate, setCart, isCurating, setCurating } = useMissionStore();
+  const { guestCount, declaredMissionType, setSelectedTemplate, setCart, isCurating, setCurating, setDeclaredMission, missionDate } = useMissionStore();
 
   const handleSelectTemplate = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
@@ -20,11 +20,25 @@ export default function TemplatesPage() {
 
     setSelectedTemplate(template);
 
+    // Determine the template's default guest count and dynamic datetime matching its vibe
+    const templateGuests = templateId === "t2" ? 12 : templateId === "t3" ? 8 : 6;
+    const templateDate = templateId === "t2" 
+      ? "Friday, May 22 at 8 PM" 
+      : templateId === "t3" 
+        ? "Sunday, May 24 at 11 AM" 
+        : "Saturday, May 23 at 6 PM";
+    
+    // Determine appropriate mission type to keep consistent with selected template
+    const templateMissionType = templateId === "t2" ? "other" : templateId === "t3" ? "other" : "dinner-party";
+
+    // Set updated parameters in store so the cart header matches
+    setDeclaredMission(declaredMissionType || templateMissionType, templateGuests, templateDate);
+
     // If it's a template we have mock data for but we want AI curation
     if (declaredMissionType) {
       setCurating(true);
       try {
-        const aiCuratedCart = await generateMissionCart(declaredMissionType, guestCount);
+        const aiCuratedCart = await generateMissionCart(declaredMissionType, templateGuests);
         setCart(aiCuratedCart);
         router.push("/cart");
       } catch (error) {

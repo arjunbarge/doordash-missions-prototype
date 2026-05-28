@@ -11,10 +11,33 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const getBaseQuantity = (productId: string, templateId: string) => {
+  if (productId === "p8") return 1; // Bouquet is always 1
+
+  if (templateId === "t2") {
+    // Cocktail Night for 12
+    if (productId === "p5" || productId === "p6" || productId === "p7") return 2; // cheeses
+    if (productId === "p9") return 4; // baguettes
+    if (productId === "p10") return 3; // ice/water
+    return 2; // default
+  }
+  
+  if (templateId === "t3") {
+    // Casual Brunch for 8
+    if (productId === "p3" || productId === "p4") return 3; // prosecco
+    if (productId === "p9") return 2; // baguettes
+    return 1; // default
+  }
+
+  // Intimate Dinner for 6 (t1) and default
+  return 1;
+};
+
 export default function CartPage() {
   const router = useRouter();
-  const { cart, swapCartItem, missionDate, guestCount, orderStatus } = useMissionStore();
+  const { cart, swapCartItem, missionDate, guestCount, orderStatus, declaredMissionType, setDeclaredMission, setCart, selectedTemplate } = useMissionStore();
   const [substitutionSheetOpen, setSubstitutionSheetOpen] = useState(false);
+  const [isEditingGuests, setIsEditingGuests] = useState(false);
 
   // Group items by merchant
   const cartByMerchant = cart.reduce((acc, item) => {
@@ -33,16 +56,50 @@ export default function CartPage() {
   const handleSwap = (oldId: string, newId: string) => {
     const newProduct = products[newId];
     if (newProduct) {
+      const templateId = selectedTemplate?.id || "t1";
+      const baseGuests = templateId === "t2" ? 12 : templateId === "t3" ? 8 : 6;
+      const baseQty = getBaseQuantity(newId, templateId);
+      const newQty = newId === "p8" ? 1 : Math.max(1, Math.ceil(guestCount * (baseQty / baseGuests)));
+
       swapCartItem(oldId, {
         product: newProduct,
-        quantity: 1,
-        reasoning: "Swapped to alternative option."
+        quantity: newQty,
+        reasoning: `Swapped to alternative ${newProduct.name} to preserve the mission.`
       });
       setSubstitutionSheetOpen(false);
       toast.success("Swap accepted, mission preserved", {
         icon: <CheckCircle2 className="w-4 h-4 text-green-500" />
       });
     }
+  };
+
+  const handleUpdateGuests = (newGuests: number) => {
+    if (newGuests < 1) return;
+
+    setDeclaredMission(declaredMissionType || "dinner-party", newGuests, missionDate);
+
+    const templateId = selectedTemplate?.id || "t1";
+    const baseGuests = templateId === "t2" ? 12 : templateId === "t3" ? 8 : 6;
+
+    const updatedCart = cart.map(item => {
+      const baseQty = getBaseQuantity(item.product.id, templateId);
+      const newQty = item.product.id === "p8" ? 1 : Math.max(1, Math.ceil(newGuests * (baseQty / baseGuests)));
+      
+      let updatedReasoning = item.reasoning;
+      if (updatedReasoning) {
+        updatedReasoning = updatedReasoning.replace(/\b(6|8|12|1)\b-guest/g, `${newGuests}-guest`);
+        updatedReasoning = updatedReasoning.replace(/\b(for 6 guests|for 8 guests|for 12 guests|for 1 guest)\b/g, `for ${newGuests} guests`);
+        updatedReasoning = updatedReasoning.replace(/\b(for 6|for 8|for 12|for 1)\b guests/g, `for ${newGuests} guests`);
+      }
+
+      return {
+        ...item,
+        quantity: newQty,
+        reasoning: updatedReasoning
+      };
+    });
+
+    setCart(updatedCart);
   };
 
   const handleCheckout = () => {
@@ -60,7 +117,8 @@ export default function CartPage() {
   }
 
   const subtotal = calculateSubtotal();
-  const deliveryFees = 11.96; // $2.99 * 4 merchants (simulated)
+  const merchantCount = Object.keys(cartByMerchant).length;
+  const deliveryFees = merchantCount * 2.99;
   const orchestrationFee = 4.99;
   const total = subtotal + deliveryFees + orchestrationFee;
 
@@ -70,20 +128,57 @@ export default function CartPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-3">
           Smart Mission Cart
         </h1>
-        <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-primary">Saturday, May 23 at 6 PM</p>
-            <p className="text-xs text-primary/80">Boss + {guestCount - 1} guests</p>
+        {isEditingGuests ? (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between transition-all duration-300">
+            <div>
+              <p className="text-sm font-medium text-primary">{missionDate}</p>
+              <p className="text-xs text-primary/80">Adjust guest count to scale cart</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8 rounded-full border-primary/30 text-primary bg-white hover:bg-primary/10 flex items-center justify-center font-bold text-base pb-0.5 shadow-none"
+                onClick={() => handleUpdateGuests(guestCount - 1)}
+                disabled={guestCount <= 1}
+              >
+                -
+              </Button>
+              <span className="font-semibold text-primary text-sm min-w-6 text-center">
+                {guestCount}
+              </span>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8 rounded-full border-primary/30 text-primary bg-white hover:bg-primary/10 flex items-center justify-center font-bold text-base pb-0.5 shadow-none"
+                onClick={() => handleUpdateGuests(guestCount + 1)}
+              >
+                +
+              </Button>
+              <button 
+                className="text-xs font-bold text-primary hover:underline ml-1"
+                onClick={() => setIsEditingGuests(false)}
+              >
+                Done
+              </button>
+            </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-primary h-8 px-2 text-xs font-semibold"
-            onClick={() => toast.info('Parameter editing is disabled while AI Orchestrator is offline')}
-          >
-            Edit
-          </Button>
-        </div>
+        ) : (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-center justify-between transition-all duration-300">
+            <div>
+              <p className="text-sm font-medium text-primary">{missionDate}</p>
+              <p className="text-xs text-primary/80">Boss + {guestCount - 1} guests</p>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-primary h-8 px-2 text-xs font-semibold hover:bg-primary/5"
+              onClick={() => setIsEditingGuests(true)}
+            >
+              Edit
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-32">
@@ -139,7 +234,7 @@ export default function CartPage() {
                           </button>
                         )}
 
-                        <Accordion type="single" className="w-full mt-2 border-none">
+                        <Accordion className="w-full mt-2 border-none">
                           <AccordionItem value="reasoning" className="border-none">
                             <AccordionTrigger className="py-1 hover:no-underline text-xs text-primary font-medium flex gap-1 justify-start">
                               <Sparkles className="w-3.5 h-3.5 mr-1" />
@@ -171,7 +266,7 @@ export default function CartPage() {
               <span className="text-foreground">${subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Delivery fees (4 merchants)</span>
+              <span>Delivery fees ({merchantCount} {merchantCount === 1 ? "merchant" : "merchants"})</span>
               <span className="text-foreground">${deliveryFees.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
@@ -217,24 +312,50 @@ export default function CartPage() {
             </div>
             
             <div className="space-y-4">
-              <div className="p-4 border-2 border-primary/20 bg-primary/5 rounded-2xl flex justify-between items-center">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Available Swaps</p>
+              
+              {/* Sancerre Option */}
+              <div 
+                className="p-4 border-2 border-primary/20 bg-primary/5 rounded-2xl flex justify-between items-center cursor-pointer hover:bg-primary/10 transition-colors"
+                onClick={() => handleSwap("p1", "p4")}
+              >
                 <div className="flex gap-3 items-center">
-                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0">
-                    <img src={products.p4.image} className="object-cover w-full h-full" />
+                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0 border border-border">
+                    <img src={products.p4.image} className="object-cover w-full h-full" alt={products.p4.name} />
                   </div>
                   <div>
-                    <h4 className="font-semibold">{products.p4.name}</h4>
-                    <p className="text-sm text-muted-foreground">Bin 36 Wine Shop</p>
+                    <h4 className="font-semibold text-sm">{products.p4.name}</h4>
+                    <p className="text-xs text-muted-foreground">Bin 36 Wine Shop • 30-45 min</p>
                   </div>
                 </div>
-                <span className="font-semibold">${products.p4.price}</span>
+                <div className="flex flex-col items-end">
+                  <span className="font-semibold text-sm">${products.p4.price}</span>
+                  <span className="text-[10px] text-primary font-semibold mt-1">Select swap</span>
+                </div>
+              </div>
+
+              {/* Vouvray Option */}
+              <div 
+                className="p-4 border-2 border-primary/20 bg-primary/5 rounded-2xl flex justify-between items-center cursor-pointer hover:bg-primary/10 transition-colors"
+                onClick={() => handleSwap("p1", "p7")}
+              >
+                <div className="flex gap-3 items-center">
+                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden shrink-0 border border-border">
+                    <img src={products.p7.image} className="object-cover w-full h-full" alt={products.p7.name} />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm">{products.p7.name}</h4>
+                    <p className="text-xs text-muted-foreground">Pastoral Cheese • 40-55 min</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="font-semibold text-sm">${products.p7.price}</span>
+                  <span className="text-[10px] text-primary font-semibold mt-1">Select swap</span>
+                </div>
               </div>
               
-              <Button className="w-full text-lg h-14 rounded-xl" onClick={() => handleSwap("p1", "p4")}>
-                Accept Sancerre swap
-              </Button>
-              <Button variant="outline" className="w-full h-12 rounded-xl text-muted-foreground border-border" onClick={() => setSubstitutionSheetOpen(false)}>
-                See all alternatives
+              <Button variant="outline" className="w-full h-12 rounded-xl text-muted-foreground border-border mt-2" onClick={() => setSubstitutionSheetOpen(false)}>
+                Cancel
               </Button>
             </div>
           </div>

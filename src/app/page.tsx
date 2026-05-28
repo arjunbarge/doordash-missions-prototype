@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useMissionStore } from "@/lib/store";
 import { MissionType } from "@/lib/types";
-import { Switch } from "@/components/ui/switch"; // Need to install switch maybe? Wait, I didn't install switch. I'll use a standard toggle or just a button for 'Simulate next day'.
 import { Button } from "@/components/ui/button";
 import { Mic, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -15,6 +14,7 @@ export default function HomePage() {
   const router = useRouter();
   const setDeclaredMission = useMissionStore((state) => state.setDeclaredMission);
   const setCart = useMissionStore((state) => state.setCart);
+  const setSelectedTemplate = useMissionStore((state) => state.setSelectedTemplate);
   
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -45,6 +45,7 @@ export default function HomePage() {
       // Simulate processing and directly route to offline cart
       setTimeout(() => {
         setDeclaredMission("dinner-party", 6, "Saturday, May 16, 2026");
+        setSelectedTemplate(templates[0]);
         toast.success("Using Mission Template logic (AI offline)");
         setCart(templates[0].defaultItems);
         setVoiceSheetOpen(false);
