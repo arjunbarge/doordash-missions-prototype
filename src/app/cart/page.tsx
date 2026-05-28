@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from "@/components/ui/sheet";
-import { MapPin, Clock, Info, CheckCircle2, Sparkles } from "lucide-react";
+import { MapPin, Clock, Info, CheckCircle2, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -100,6 +100,22 @@ export default function CartPage() {
     });
 
     setCart(updatedCart);
+  };
+
+  const handleRemoveItem = (productId: string) => {
+    const itemToRemove = cart.find(item => item.product.id === productId);
+    if (!itemToRemove) return;
+    
+    const updatedCart = cart.filter(item => item.product.id !== productId);
+    setCart(updatedCart);
+    
+    const remainingMerchantItems = updatedCart.filter(item => item.product.merchantId === itemToRemove.product.merchantId);
+    if (remainingMerchantItems.length === 0) {
+      const merchant = merchants.find(m => m.id === itemToRemove.product.merchantId);
+      toast.success(`Removed ${itemToRemove.product.name}. ${merchant?.name || "Merchant"} removed from your mission (saved $2.99 delivery fee!).`);
+    } else {
+      toast.success(`Removed ${itemToRemove.product.name} from cart.`);
+    }
   };
 
   const handleCheckout = () => {
@@ -220,10 +236,22 @@ export default function CartPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-2">
                           <h4 className="font-medium text-sm leading-tight text-foreground">{item.product.name}</h4>
-                          <div className="flex flex-col items-end">
-                            <span className="font-semibold text-sm shrink-0">${(item.product.price * item.quantity).toFixed(2)}</span>
-                            {item.quantity > 1 && (
-                              <span className="text-[10px] text-muted-foreground">${item.product.price} / ea</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-end">
+                              <span className="font-semibold text-sm shrink-0">${(item.product.price * item.quantity).toFixed(2)}</span>
+                              {item.quantity > 1 && (
+                                <span className="text-[10px] text-muted-foreground">${item.product.price} / ea</span>
+                              )}
+                            </div>
+                            {isEditingGuests && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive rounded-full shrink-0 shadow-none border-none flex items-center justify-center"
+                                onClick={() => handleRemoveItem(item.product.id)}
+                              >
+                                <Trash2 className="w-4.5 h-4.5" />
+                              </Button>
                             )}
                           </div>
                         </div>
